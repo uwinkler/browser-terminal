@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# title - Erstellt/Wechselt zu tmux-Session und öffnet neuen Browser-Tab
+# Verwendung: title "session-name"
+
+if [ $# -eq 0 ]; then
+    echo "Verwendung: title \"session-name\""
+    echo "Beispiel: title \"server\""
+    echo ""
+    echo "Erstellt eine tmux-Session oder wechselt zu einer bestehenden"
+    echo "und öffnet einen neuen Browser-Tab mit dieser Session."
+    exit 1
+fi
+
+# Session-Name (erstes Argument)
+SESSION_NAME="$1"
+
+# Validiere Session-Name (nur alphanumerisch und Bindestriche)
+if [[ ! "$SESSION_NAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "Fehler: Session-Name darf nur Buchstaben, Zahlen, Unterstriche und Bindestriche enthalten"
+    exit 1
+fi
+
+echo "Erstelle/Wechsle zu tmux-Session: $SESSION_NAME"
+
+# Signal an Server senden für Browser-Redirect
+printf "TITLE_SESSION:%s\r\n" "$SESSION_NAME"
+
+# Kurz warten, dann zu tmux-Session wechseln
+sleep 0.5
+
+# Prüfe ob tmux verfügbar ist
+if ! command -v tmux &> /dev/null; then
+    echo "tmux ist nicht installiert. Installiere tmux für Session-Funktionalität."
+    exit 1
+fi
+
+# Prüfe ob Session bereits existiert
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo "Wechsle zu bestehender Session: $SESSION_NAME"
+    tmux attach-session -t "$SESSION_NAME"
+else
+    echo "Erstelle neue Session: $SESSION_NAME"
+    tmux new-session -s "$SESSION_NAME"
+fi 

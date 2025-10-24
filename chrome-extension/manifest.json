@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Web Terminal Launcher",
+  "version": "1.0.0",
+  "description": "Öffne Web-Terminal mit konfigurierbaren Shortcuts und automatischer Tab-Gruppierung",
+
+  "permissions": ["tabs", "tabGroups", "storage", "activeTab"],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Web Terminal Launcher"
+  },
+
+  "options_page": "options.html",
+
+  "commands": {
+    "open-terminal": {
+      "suggested_key": {
+        "default": "Ctrl+Period",
+        "mac": "Command+Period"
+      },
+      "description": "Öffne neues Web Terminal"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

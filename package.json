@@ -1,0 +1,23 @@
+{
+  "name": "web-terminal",
+  "version": "1.0.0",
+  "description": "Web-basiertes Terminal mit xterm.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "terminal",
+    "xterm",
+    "websocket",
+    "shell"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.5",
+    "node-pty": "^1.0.0"
+  }
+}

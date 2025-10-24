@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 350px;
+            padding: 15px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            background: #f8f9fa;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .header h2 {
+            margin: 0;
+            color: #2d3748;
+            font-size: 18px;
+        }
+        
+        .header .subtitle {
+            color: #718096;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        .section {
+            margin-bottom: 20px;
+        }
+        
+        .section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        .btn {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            margin-bottom: 10px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background: #3182ce;
+        }
+        
+        .btn.secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+        
+        .btn.secondary:hover {
+            background: #cbd5e0;
+        }
+        
+        .info-box {
+            background: #edf2f7;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 12px;
+            color: #4a5568;
+        }
+        
+        .shortcut-display {
+            background: #2d3748;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            text-align: center;
+            margin: 8px 0;
+        }
+        
+        .status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+        
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #feb2b2;
+        }
+        
+        .footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e9ecef;
+            text-align: center;
+        }
+        
+        .footer a {
+            color: #4299e1;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>🖥️ Web Terminal</h2>
+        <div class="subtitle">Schneller Zugriff auf dein Terminal</div>
+    </div>
+    
+    <div class="section">
+        <h3>Terminal öffnen</h3>
+        <button id="openTerminal" class="btn">
+            Neues Terminal öffnen
+        </button>
+        
+        <div class="shortcut-display" id="shortcutDisplay">
+            Cmd + . (macOS) / Ctrl + . (Windows)
+        </div>
+    </div>
+    
+    <div class="section">
+        <h3>Einstellungen</h3>
+        <button id="openOptions" class="btn secondary">
+            ⚙️ Konfiguration öffnen
+        </button>
+    </div>
+    
+    <div class="info-box">
+        <strong>💡 Tipp:</strong> Verwende die Tastenkombination von überall auf jeder Webseite, um schnell ein neues Terminal zu öffnen.
+    </div>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <div class="footer">
+        <a href="#" id="helpLink">Hilfe & Shortcuts</a>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
