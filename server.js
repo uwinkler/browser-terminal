@@ -22,6 +22,25 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// API: tmux-Sessions auflisten
+app.get('/api/tmux-sessions', (req, res) => {
+  try {
+    const { execSync } = require('child_process');
+    const output = execSync(
+      `tmux list-sessions -F "#{session_name}" 2>/dev/null`,
+      { encoding: 'utf8' }
+    );
+    const sessions = output
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    res.json({ sessions });
+  } catch (error) {
+    // Kein tmux oder keine Sessions
+    res.json({ sessions: [] });
+  }
+});
+
 // Terminal-Sessions verwalten
 const terminals = {};
 
@@ -159,6 +178,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT,'127.0.0.1', () => {
   console.log(`Web Terminal Server läuft auf http://localhost:${PORT}`);
 });
