@@ -22,35 +22,22 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// REST API Endpunkt für tmux Sessions
-app.get('/api/tmux/sessions', (req, res) => {
+// API: tmux-Sessions auflisten
+app.get('/api/tmux-sessions', (req, res) => {
   try {
     const { execSync } = require('child_process');
-    
-    // Tmux Sessions auflisten
-    const output = execSync('tmux list-sessions -F "#{session_name}|#{session_windows}|#{session_attached}|#{session_created}" 2>/dev/null', {
-      encoding: 'utf-8'
-    });
-    
-    const sessions = output.trim().split('\n').filter(line => line).map(line => {
-      const [name, windows, attached, created] = line.split('|');
-      return {
-        name,
-        windows: parseInt(windows, 10),
-        attached: parseInt(attached, 10),
-        created: parseInt(created, 10),
-        createdDate: new Date(parseInt(created, 10) * 1000).toISOString()
-      };
-    });
-    
+    const output = execSync(
+      `tmux list-sessions -F "#{session_name}" 2>/dev/null`,
+      { encoding: 'utf8' }
+    );
+    const sessions = output
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
     res.json({ sessions });
   } catch (error) {
-    // Wenn tmux nicht verfügbar ist oder keine Sessions existieren
-    if (error.message.includes('no server running')) {
-      res.json({ sessions: [] });
-    } else {
-      res.status(500).json({ error: 'Fehler beim Auflisten der tmux Sessions', message: error.message });
-    }
+    // Kein tmux oder keine Sessions
+    res.json({ sessions: [] });
   }
 });
 
@@ -191,6 +178,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT,'127.0.0.1', () => {
   console.log(`Web Terminal Server läuft auf http://localhost:${PORT}`);
 });

@@ -8,6 +8,72 @@ let currentSession = null;
 const terminalContainer = document.getElementById('terminal');
 const statusIndicator = document.getElementById('status-indicator');
 const statusText = document.getElementById('status-text');
+const sessionSelect = document.getElementById('session-select');
+const sessionRefreshBtn = document.getElementById('session-refresh');
+
+// tmux-Sessions vom Server laden und Dropdown füllen
+async function loadTmuxSessions() {
+    try {
+        const res = await fetch('/api/tmux-sessions');
+        const data = await res.json();
+        const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+
+        // Dropdown leeren
+        sessionSelect.innerHTML = '';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = sessions.length
+            ? '— Session wählen —'
+            : '— keine Sessions —';
+        sessionSelect.appendChild(placeholder);
+
+        const current = getCurrentSession();
+        let currentFound = false;
+
+        sessions.forEach((name) => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            if (name === current) {
+                opt.selected = true;
+                currentFound = true;
+            }
+            sessionSelect.appendChild(opt);
+        });
+
+        // Aktuelle Session anzeigen, auch wenn (noch) nicht in Liste
+        if (current && !currentFound) {
+            const opt = document.createElement('option');
+            opt.value = current;
+            opt.textContent = `${current} (aktiv)`;
+            opt.selected = true;
+            sessionSelect.appendChild(opt);
+        }
+    } catch (e) {
+        console.error('Fehler beim Laden der tmux-Sessions:', e);
+    }
+}
+
+// Session-Wechsel: Navigation per URL-Parameter
+function switchToSession(name) {
+    if (!name) return;
+    const current = getCurrentSession();
+    if (name === current) return;
+    window.location.href = `${window.location.origin}/?session=${encodeURIComponent(name)}`;
+}
+
+if (sessionSelect) {
+    sessionSelect.addEventListener('change', (e) => {
+        switchToSession(e.target.value);
+    });
+}
+if (sessionRefreshBtn) {
+    sessionRefreshBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        loadTmuxSessions();
+    });
+}
 
 // URL-Parameter lesen
 function getUrlParameter(name) {
@@ -190,7 +256,11 @@ function reconnect() {
 
 // Event Listeners
 // Global click listener - Terminal fokussieren
-document.addEventListener('click', () => {
+document.addEventListener('click', (e) => {
+    // Klicks auf den Session-Switcher nicht in Terminal-Focus umleiten
+    if (e.target.closest && e.target.closest('.session-switcher')) {
+        return;
+    }
     if (terminal) {
         terminal.focus();
     }
@@ -219,6 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     initTerminal();
     initSocket();
+    loadTmuxSessions();
     
     // Terminal automatisch fokussieren
     setTimeout(() => {
