@@ -13,6 +13,10 @@ const sessionRefreshBtn = document.getElementById('session-refresh');
 const themeSelect = document.getElementById('theme-select');
 const sessionSwitcher = document.getElementById('session-switcher');
 const switcherToggle = document.getElementById('switcher-toggle');
+const sessionAddBtn = document.getElementById('session-add');
+const fontDecBtn = document.getElementById('font-dec');
+const fontIncBtn = document.getElementById('font-inc');
+const fontSizeDisplay = document.getElementById('font-size-display');
 
 // Color Themes Configuration
 const themes = {
@@ -576,13 +580,14 @@ function getCurrentSession() {
 function initTerminal() {
     const savedTheme = localStorage.getItem('selected-theme') || 'classic';
     const themeConfig = themes[savedTheme] || themes.classic;
+    const savedFontSize = parseInt(localStorage.getItem('terminal-font-size')) || 14;
 
     // xterm.js Terminal erstellen
     terminal = new Terminal({
         cursorBlink: true,
         cursorStyle: 'block',
         theme: themeConfig.xterm,
-        fontSize: 14,
+        fontSize: savedFontSize,
         fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
         allowTransparency: true,
         scrollback: 1000
@@ -768,6 +773,63 @@ document.addEventListener('DOMContentLoaded', () => {
             if (terminal) {
                 terminal.focus();
             }
+        });
+    }
+
+    // Neue tmux-Session erstellen Button Logik
+    if (sessionAddBtn) {
+        sessionAddBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const sessionName = prompt('Geben Sie den Namen für die neue tmux-Session ein:');
+            if (sessionName && sessionName.trim()) {
+                const cleanName = sessionName.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+                if (cleanName) {
+                    switchToSession(cleanName);
+                } else {
+                    alert('Ungültiger Name. Nur Buchstaben, Zahlen, Unterstriche und Bindestriche sind erlaubt.');
+                }
+            }
+        });
+    }
+
+    // Font-Size Adjustment Logik
+    let currentFontSize = parseInt(localStorage.getItem('terminal-font-size')) || 14;
+    function updateFontSize(newSize) {
+        if (newSize < 10 || newSize > 24) return;
+        currentFontSize = newSize;
+        localStorage.setItem('terminal-font-size', currentFontSize);
+        if (fontSizeDisplay) {
+            fontSizeDisplay.textContent = currentFontSize;
+        }
+        if (terminal) {
+            terminal.options.fontSize = currentFontSize;
+            if (fitAddon) {
+                fitAddon.fit();
+                if (socket && socket.connected) {
+                    socket.emit('terminal-resize', {
+                        cols: terminal.cols,
+                        rows: terminal.rows
+                    });
+                }
+            }
+        }
+    }
+
+    if (fontSizeDisplay) {
+        fontSizeDisplay.textContent = currentFontSize;
+    }
+
+    if (fontDecBtn) {
+        fontDecBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            updateFontSize(currentFontSize - 1);
+        });
+    }
+
+    if (fontIncBtn) {
+        fontIncBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            updateFontSize(currentFontSize + 1);
         });
     }
 
