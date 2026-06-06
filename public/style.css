@@ -5,12 +5,25 @@
     box-sizing: border-box;
 }
 
+:root {
+    --bg-color: #1e1e1e;
+    --container-bg-color: #1e1e1e;
+    --terminal-bg-color: #000000;
+    --text-color: #ffffff;
+    --border-color: rgba(64, 64, 64, 0.6);
+    --control-bg-color: #2d2d2d;
+    --control-bg-color-alpha: rgba(45, 45, 45, 0.85);
+    --control-text-color: #ffffff;
+    --control-border-color: #444;
+}
+
 body {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    background-color: #1e1e1e;
-    color: #ffffff;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     height: 100vh;
     overflow: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .container {
@@ -24,17 +37,19 @@ body {
 .terminal-container {
     flex: 1;
     padding: 10px;
-    background-color: #1e1e1e;
+    background-color: var(--container-bg-color);
     overflow: hidden;
+    transition: background-color 0.3s ease;
 }
 
 #terminal {
     width: 100%;
     height: 100%;
-    background-color: #000000;
+    background-color: var(--terminal-bg-color);
     border-radius: 4px;
     padding: 10px;
     box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.3s ease;
 }
 
 /* xterm.js Anpassungen */
@@ -50,7 +65,7 @@ body {
     background-color: transparent !important;
 }
 
-/* Session Switcher (oben rechts) */
+/* Session Switcher / Controls (oben rechts) */
 .session-switcher {
     position: absolute;
     top: 8px;
@@ -59,52 +74,70 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
-    background-color: rgba(45, 45, 45, 0.85);
-    border: 1px solid rgba(64, 64, 64, 0.6);
+    background-color: var(--control-bg-color-alpha);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    padding: 3px 4px;
+    padding: 3px 6px;
     backdrop-filter: blur(4px);
+    transition: all 0.3s ease;
+}
+
+.switcher-icon {
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    margin: 0 2px;
+    user-select: none;
+}
+
+.switcher-separator {
+    color: var(--border-color);
+    margin: 0 4px;
+    font-weight: 300;
+    user-select: none;
 }
 
 .session-switcher select {
-    background-color: #2d2d2d;
-    color: #ffffff;
-    border: 1px solid #444;
+    background-color: var(--control-bg-color);
+    color: var(--control-text-color);
+    border: 1px solid var(--control-border-color);
     border-radius: 3px;
     padding: 3px 6px;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 0.75rem;
-    min-width: 140px;
+    min-width: 130px;
     cursor: pointer;
     outline: none;
+    transition: all 0.2s ease;
 }
 
 .session-switcher select:hover,
 .session-switcher select:focus {
-    border-color: #666;
+    border-color: var(--text-color);
 }
 
 .session-switcher button {
-    background-color: #2d2d2d;
-    color: #ccc;
-    border: 1px solid #444;
+    background-color: var(--control-bg-color);
+    color: var(--control-text-color);
+    border: 1px solid var(--control-border-color);
     border-radius: 3px;
     padding: 2px 6px;
     font-size: 0.8rem;
     cursor: pointer;
     line-height: 1;
+    transition: all 0.2s ease;
 }
 
 .session-switcher button:hover {
-    background-color: #3a3a3a;
-    color: #fff;
+    background-color: var(--border-color);
+    color: var(--text-color);
 }
 
 /* Footer */
 .footer {
-    background-color: rgba(45, 45, 45, 0.7);
+    background-color: var(--control-bg-color-alpha);
     padding: 4px 12px;
-    border-top: 1px solid rgba(64, 64, 64, 0.5);
+    border-top: 1px solid var(--border-color);
     min-height: 24px;
     display: flex;
     align-items: center;
@@ -113,6 +146,7 @@ body {
     right: 0;
     border-radius: 4px 0 0 0;
     backdrop-filter: blur(4px);
+    transition: all 0.3s ease;
 }
 
 .status {
