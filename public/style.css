@@ -73,13 +73,81 @@ body {
     z-index: 100;
     display: flex;
     align-items: center;
-    gap: 4px;
     background-color: var(--control-bg-color-alpha);
     border: 1px solid var(--border-color);
     border-radius: 4px;
-    padding: 3px 6px;
+    padding: 3px;
     backdrop-filter: blur(4px);
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 600px;
+    overflow: hidden;
+}
+
+/* Wenn eingeklappt */
+.session-switcher.collapsed {
+    max-width: 32px;
+    border-color: transparent;
+    background-color: transparent;
+    backdrop-filter: none;
+    box-shadow: none;
+}
+
+.session-switcher.collapsed:hover {
+    background-color: var(--control-bg-color-alpha);
+    border-color: var(--border-color);
+    backdrop-filter: blur(4px);
+}
+
+.session-switcher-content {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 4px;
+    transition: opacity 0.2s ease, transform 0.3s ease;
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.session-switcher.collapsed .session-switcher-content {
+    opacity: 0;
+    transform: translateX(20px);
+    pointer-events: none;
+    width: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+}
+
+.switcher-toggle {
+    background: transparent !important;
+    border: none !important;
+    color: var(--control-text-color);
+    font-size: 0.95rem;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: transform 0.3s ease, background-color 0.2s ease;
+    user-select: none;
+}
+
+.switcher-toggle:hover {
+    background-color: var(--border-color) !important;
+}
+
+.session-switcher.collapsed .switcher-toggle {
+    transform: rotate(-90deg);
+    background-color: var(--control-bg-color) !important;
+    border: 1px solid var(--control-border-color) !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.session-switcher.collapsed .switcher-toggle:hover {
+    background-color: var(--border-color) !important;
+    border-color: var(--text-color) !important;
 }
 
 .switcher-icon {

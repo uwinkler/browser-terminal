@@ -13,35 +13,38 @@
 </head>
 <body>
     <div class="container">
-        <div class="session-switcher">
-            <span class="switcher-icon" title="Farbschema">🎨</span>
-            <select id="theme-select" title="Farbschema wechseln">
-                <optgroup label="Dunkle Schemen">
-                    <option value="classic">Black & White</option>
-                    <option value="dracula">Dracula</option>
-                    <option value="onedark">One Dark</option>
-                    <option value="nord">Nord</option>
-                    <option value="gruvbox">Gruvbox Dark</option>
-                    <option value="solarized-dark">Solarized Dark</option>
-                    <option value="retro-amber">Retro Amber</option>
-                    <option value="retro-green">Retro Green</option>
-                </optgroup>
-                <optgroup label="Helle Schemen">
-                    <option value="solarized-light">Solarized Light</option>
-                    <option value="github-light">GitHub Light</option>
-                    <option value="onelight">One Light</option>
-                    <option value="gruvbox-light">Gruvbox Light</option>
-                    <option value="papercolor-light">PaperColor Light</option>
-                </optgroup>
-            </select>
-            
-            <span class="switcher-separator">|</span>
-            
-            <span class="switcher-icon" title="tmux-Session">🐚</span>
-            <select id="session-select" title="tmux-Session wechseln">
-                <option value="">— Session wählen —</option>
-            </select>
-            <button id="session-refresh" title="Sessions neu laden">⟳</button>
+        <div class="session-switcher" id="session-switcher">
+            <button class="switcher-toggle" id="switcher-toggle" title="Einstellungen ein-/ausblenden">⚙️</button>
+            <div class="session-switcher-content">
+                <span class="switcher-icon" title="Farbschema">🎨</span>
+                <select id="theme-select" title="Farbschema wechseln">
+                    <optgroup label="Dunkle Schemen">
+                        <option value="classic">Black & White</option>
+                        <option value="dracula">Dracula</option>
+                        <option value="onedark">One Dark</option>
+                        <option value="nord">Nord</option>
+                        <option value="gruvbox">Gruvbox Dark</option>
+                        <option value="solarized-dark">Solarized Dark</option>
+                        <option value="retro-amber">Retro Amber</option>
+                        <option value="retro-green">Retro Green</option>
+                    </optgroup>
+                    <optgroup label="Helle Schemen">
+                        <option value="solarized-light">Solarized Light</option>
+                        <option value="github-light">GitHub Light</option>
+                        <option value="onelight">One Light</option>
+                        <option value="gruvbox-light">Gruvbox Light</option>
+                        <option value="papercolor-light">PaperColor Light</option>
+                    </optgroup>
+                </select>
+                
+                <span class="switcher-separator">|</span>
+                
+                <span class="switcher-icon" title="tmux-Session">🐚</span>
+                <select id="session-select" title="tmux-Session wechseln">
+                    <option value="">— Session wählen —</option>
+                </select>
+                <button id="session-refresh" title="Sessions neu laden">⟳</button>
+            </div>
         </div>
         <div class="terminal-container">
             <div id="terminal"></div>

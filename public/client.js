@@ -11,6 +11,8 @@ const statusText = document.getElementById('status-text');
 const sessionSelect = document.getElementById('session-select');
 const sessionRefreshBtn = document.getElementById('session-refresh');
 const themeSelect = document.getElementById('theme-select');
+const sessionSwitcher = document.getElementById('session-switcher');
+const switcherToggle = document.getElementById('switcher-toggle');
 
 // Color Themes Configuration
 const themes = {
@@ -752,6 +754,23 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM geladen, initialisiere Terminal...');
     updateStatus('connecting', 'Terminal wird initialisiert...');
     
+    // Collapsible Settings Menu Logik
+    if (switcherToggle && sessionSwitcher) {
+        const isCollapsed = localStorage.getItem('menu-collapsed') === 'true';
+        if (isCollapsed) {
+            sessionSwitcher.classList.add('collapsed');
+        }
+        
+        switcherToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const nowCollapsed = sessionSwitcher.classList.toggle('collapsed');
+            localStorage.setItem('menu-collapsed', nowCollapsed);
+            if (terminal) {
+                terminal.focus();
+            }
+        });
+    }
+
     // Theme Event Listener einrichten
     const savedTheme = localStorage.getItem('selected-theme') || 'classic';
     if (themeSelect) {
