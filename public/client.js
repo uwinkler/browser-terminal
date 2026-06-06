@@ -17,6 +17,33 @@ const sessionAddBtn = document.getElementById('session-add');
 const fontDecBtn = document.getElementById('font-dec');
 const fontIncBtn = document.getElementById('font-inc');
 const fontSizeDisplay = document.getElementById('font-size-display');
+const mcpIndicator = document.getElementById('mcp-indicator');
+const mcpText = document.getElementById('mcp-text');
+
+// ── Output-Buffer (für WebMCP) ─────────────────────────────────────────────
+const MAX_BUFFER_LINES = 500;
+const outputBuffer = [];
+
+function stripAnsi(str) {
+    return str
+        .replace(/\x1b\[[\d;]*[mGKHJABCDEFhlsurinsulp]/g, '')
+        .replace(/\x1b\][^\x07]*\x07/g, '')
+        .replace(/\x1b[()][AB012]/g, '')
+        .replace(/[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]/g, '');
+}
+
+function appendToBuffer(data) {
+    const clean = stripAnsi(String(data));
+    const lines = clean.split(/\r?\n/);
+    // Letzte Zeile im Buffer ggf. mit erstem Segment zusammenführen (Partial Lines)
+    if (outputBuffer.length > 0 && lines.length > 0) {
+        outputBuffer[outputBuffer.length - 1] += lines.shift();
+    }
+    outputBuffer.push(...lines);
+    if (outputBuffer.length > MAX_BUFFER_LINES) {
+        outputBuffer.splice(0, outputBuffer.length - MAX_BUFFER_LINES);
+    }
+}
 
 // Color Themes Configuration
 const themes = {
@@ -675,6 +702,7 @@ function initSocket() {
     // Terminal-Output empfangen
     socket.on('terminal-output', (data) => {
         terminal.write(data);
+        appendToBuffer(data);
     });
 
     // Terminal beendet
@@ -706,6 +734,206 @@ function initSocket() {
 function updateStatus(status, text) {
     statusIndicator.className = `status-dot ${status}`;
     statusText.textContent = text;
+}
+
+// WebMCP Status-Anzeige aktualisieren
+function updateWebMCPIndicator(active) {
+    if (!mcpIndicator || !mcpText) return;
+    if (active) {
+        mcpIndicator.className = 'status-dot mcp-active';
+        mcpText.style.opacity = '1';
+        mcpText.title = 'WebMCP aktiv – 7 Tools registriert';
+    } else {
+        mcpIndicator.className = 'status-dot mcp-inactive';
+        mcpText.style.opacity = '0.4';
+        mcpText.title = 'WebMCP nicht verfügbar (Chrome 146+ + Flag benötigt)';
+    }
+}
+
+// WebMCP Tools registrieren
+function initWebMCP() {
+    if (!('modelContext' in navigator && 'registerTool' in navigator.modelContext)) {
+        console.info(
+            '%c[WebMCP] Nicht verfügbar – benötigt Chrome 146+ mit\n' +
+            'chrome://flags/#enable-webmcp-testing',
+            'color: #a855f7; font-weight: bold;'
+        );
+        updateWebMCPIndicator(false);
+        return;
+    }
+
+    // Tool 1: Aktuellen Status lesen
+    navigator.modelContext.registerTool({
+        name: 'get-current-state',
+        description:
+            'Gibt den aktuellen Status des Web Terminals zurück: ' +
+            'aktive tmux-Session, Farbschema, Schriftgröße und Verbindungsstatus.',
+        inputSchema: { type: 'object', properties: {} },
+        execute() {
+            return {
+                session: getCurrentSession() || null,
+                theme: localStorage.getItem('selected-theme') || 'classic',
+                fontSize: parseInt(localStorage.getItem('terminal-font-size')) || 14,
+                connected: socket?.connected ?? false,
+                buffered_lines: outputBuffer.length,
+                url: window.location.href
+            };
+        },
+        annotations: { readOnlyHint: true }
+    });
+
+    // Tool 2: Terminal-Ausgabe lesen
+    navigator.modelContext.registerTool({
+        name: 'get-terminal-output',
+        description:
+            'Liest die letzten Zeilen aus dem Terminal-Ausgabe-Puffer (max. 500 Zeilen gespeichert). ' +
+            'ANSI-Steuersequenzen sind bereits entfernt.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                lines: {
+                    type: 'number',
+                    description: 'Anzahl der zurückzugebenden Zeilen. Standard: 50, Maximum: 500.'
+                }
+            }
+        },
+        execute({ lines = 50 } = {}) {
+            const count = Math.min(Math.max(1, Math.floor(lines)), 500);
+            return {
+                lines: outputBuffer.slice(-count),
+                total_buffered: outputBuffer.length
+            };
+        },
+        annotations: { readOnlyHint: true }
+    });
+
+    // Tool 3: Befehl ausführen
+    navigator.modelContext.registerTool({
+        name: 'run-command',
+        description:
+            'Sendet einen Shell-Befehl an das aktive Terminal. ' +
+            'Der Befehl wird mit Enter (\\n) abgeschlossen.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                command: {
+                    type: 'string',
+                    description: 'Der auszuführende Shell-Befehl, z. B. "ls -la" oder "echo hello".'
+                }
+            },
+            required: ['command']
+        },
+        execute({ command }) {
+            if (!socket?.connected) {
+                return { error: 'Terminal ist nicht verbunden.' };
+            }
+            if (!command?.trim()) {
+                return { error: 'Kein Befehl angegeben.' };
+            }
+            socket.emit('terminal-input', command + '\n');
+            return { sent: command };
+        }
+    });
+
+    // Tool 4: Sessions auflisten
+    navigator.modelContext.registerTool({
+        name: 'list-sessions',
+        description: 'Listet alle verfügbaren tmux-Sessions auf dem Server auf.',
+        inputSchema: { type: 'object', properties: {} },
+        async execute() {
+            const res = await fetch('/api/tmux-sessions');
+            const data = await res.json();
+            return {
+                sessions: data.sessions,
+                current: getCurrentSession() || null
+            };
+        },
+        annotations: { readOnlyHint: true }
+    });
+
+    // Tool 5: Session wechseln
+    navigator.modelContext.registerTool({
+        name: 'switch-session',
+        description:
+            'Wechselt zu einer bestehenden tmux-Session. ' +
+            'Die Seite wird mit der gewählten Session neu geladen.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                session: {
+                    type: 'string',
+                    description: 'Name der tmux-Session, zu der gewechselt werden soll.'
+                }
+            },
+            required: ['session']
+        },
+        execute({ session }) {
+            if (!session?.trim()) return { error: 'Kein Session-Name angegeben.' };
+            switchToSession(session.trim());
+            return { switching_to: session.trim() };
+        }
+    });
+
+    // Tool 6: Neue Session erstellen
+    navigator.modelContext.registerTool({
+        name: 'create-session',
+        description:
+            'Erstellt eine neue tmux-Session und wechselt zu ihr. ' +
+            'Erlaubte Zeichen im Namen: Buchstaben, Zahlen, Bindestriche, Unterstriche.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                name: {
+                    type: 'string',
+                    description: 'Name der neuen tmux-Session, z. B. "dev" oder "build-2".'
+                }
+            },
+            required: ['name']
+        },
+        execute({ name }) {
+            const clean = name.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+            if (!clean) {
+                return { error: 'Ungültiger Session-Name. Nur Buchstaben, Zahlen, - und _ erlaubt.' };
+            }
+            switchToSession(clean);
+            return { creating_and_switching_to: clean };
+        }
+    });
+
+    // Tool 7: Farbschema setzen
+    navigator.modelContext.registerTool({
+        name: 'set-theme',
+        description: 'Ändert das Farbschema des Web Terminals.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                theme: {
+                    type: 'string',
+                    description:
+                        'Name des Farbschemas. Verfügbar: ' +
+                        Object.keys(themes).join(', ')
+                }
+            },
+            required: ['theme']
+        },
+        execute({ theme }) {
+            if (!themes[theme]) {
+                return {
+                    error: `Unbekanntes Schema '${theme}'.`,
+                    available: Object.keys(themes)
+                };
+            }
+            applyTheme(theme);
+            if (themeSelect) themeSelect.value = theme;
+            return { theme_set: theme };
+        }
+    });
+
+    console.info(
+        '%c[WebMCP] 7 Terminal-Tools registriert ✓',
+        'color: #a855f7; font-weight: bold;'
+    );
+    updateWebMCPIndicator(true);
 }
 
 // Terminal leeren
@@ -851,6 +1079,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTerminal();
     initSocket();
     loadTmuxSessions();
+    initWebMCP();
     
     // Terminal automatisch fokussieren
     setTimeout(() => {
