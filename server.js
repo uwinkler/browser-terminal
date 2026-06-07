@@ -17,6 +17,9 @@ const io = socketIo(server, {
 // Statische Dateien bereitstellen
 app.use(express.static(path.join(__dirname, 'public')));
 
+// JSON-Body parsen (für /api/chat)
+app.use(express.json({ limit: '2mb' }));
+
 // Hauptroute
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -38,6 +41,41 @@ app.get('/api/tmux-sessions', (req, res) => {
   } catch (error) {
     // Kein tmux oder keine Sessions
     res.json({ sessions: [] });
+  }
+});
+
+// API: OpenAI-Responses-Proxy (umgeht CORS, hält den API-Key aus dem Cross-Origin-Request).
+// Nutzt /v1/responses, damit das hosted web_search-Tool verfügbar ist.
+// Body: { apiKey?, model, input, tools?, instructions?, previous_response_id? }
+app.post('/api/chat', async (req, res) => {
+  const { apiKey, model, input, tools, instructions, previous_response_id } = req.body || {};
+  const key = apiKey || process.env.OPENAI_API_KEY;
+  if (!key) {
+    return res.status(400).json({ error: { message: 'Kein OpenAI API-Key angegeben.' } });
+  }
+  if (!input) {
+    return res.status(400).json({ error: { message: 'Kein input übergeben.' } });
+  }
+  try {
+    const upstream = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model: model || 'gpt-5.5',
+        input,
+        tools: Array.isArray(tools) && tools.length ? tools : undefined,
+        instructions: instructions || undefined,
+        previous_response_id: previous_response_id || undefined
+      })
+    });
+    const data = await upstream.json();
+    res.status(upstream.status).json(data);
+  } catch (error) {
+    console.error('OpenAI-Proxy-Fehler:', error);
+    res.status(502).json({ error: { message: 'Proxy-Fehler: ' + error.message } });
   }
 });
 

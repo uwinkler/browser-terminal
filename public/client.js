@@ -23,6 +23,30 @@ const mcpText = document.getElementById('mcp-text');
 // ── Output-Buffer (für WebMCP) ─────────────────────────────────────────────
 const MAX_BUFFER_LINES = 500;
 const outputBuffer = [];
+let lastOutputAt = Date.now(); // Zeitpunkt der letzten Terminal-Ausgabe
+
+// Wartet auf die Ausgabe eines gerade gesendeten Befehls:
+//   1. zuerst, bis überhaupt neue Ausgabe eintrifft (lastOutputAt ändert sich
+//      gegenüber baseline) – höchstens noOutputMs (für Befehle ohne Ausgabe wie cd);
+//   2. dann, bis die Ausgabe für quietMs "still" ist.
+// Insgesamt nie länger als maxMs. So wird nicht abgebrochen, BEVOR Output da war.
+function waitForCommandOutput(baseline, { quietMs = 700, maxMs = 10000, noOutputMs = 1500 } = {}) {
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+            const now = Date.now();
+            if (now - start >= maxMs) return resolve('timeout');
+            const arrived = lastOutputAt !== baseline;
+            if (!arrived) {
+                if (now - start >= noOutputMs) return resolve('no-output');
+                return setTimeout(tick, 80);
+            }
+            if (now - lastOutputAt >= quietMs) return resolve('idle');
+            setTimeout(tick, 80);
+        };
+        setTimeout(tick, 80);
+    });
+}
 
 function stripAnsi(str) {
     return str
@@ -703,6 +727,7 @@ function initSocket() {
     socket.on('terminal-output', (data) => {
         terminal.write(data);
         appendToBuffer(data);
+        lastOutputAt = Date.now();
     });
 
     // Terminal beendet
@@ -750,21 +775,12 @@ function updateWebMCPIndicator(active) {
     }
 }
 
-// WebMCP Tools registrieren
-function initWebMCP() {
-    if (!('modelContext' in navigator && 'registerTool' in navigator.modelContext)) {
-        console.info(
-            '%c[WebMCP] Nicht verfügbar – benötigt Chrome 146+ mit\n' +
-            'chrome://flags/#enable-webmcp-testing',
-            'color: #a855f7; font-weight: bold;'
-        );
-        updateWebMCPIndicator(false);
-        return;
-    }
-
-    // Tool 1: Aktuellen Status lesen
-    navigator.modelContext.registerTool({
-        name: 'get-current-state',
+// ── Terminal-Tools ─────────────────────────────────────────────────────────
+// Gemeinsame Tool-Definitionen. Werden zweifach genutzt:
+//   1. WebMCP (navigator.modelContext) für Chromes eingebauten Agenten
+//   2. postMessage-Bridge für das KI-Chat-Side-Panel der Extension
+const TERMINAL_TOOLS = {
+    'get-current-state': {
         description:
             'Gibt den aktuellen Status des Web Terminals zurück: ' +
             'aktive tmux-Session, Farbschema, Schriftgröße und Verbindungsstatus.',
@@ -780,11 +796,9 @@ function initWebMCP() {
             };
         },
         annotations: { readOnlyHint: true }
-    });
+    },
 
-    // Tool 2: Terminal-Ausgabe lesen
-    navigator.modelContext.registerTool({
-        name: 'get-terminal-output',
+    'get-terminal-output': {
         description:
             'Liest die letzten Zeilen aus dem Terminal-Ausgabe-Puffer (max. 500 Zeilen gespeichert). ' +
             'ANSI-Steuersequenzen sind bereits entfernt.',
@@ -805,14 +819,13 @@ function initWebMCP() {
             };
         },
         annotations: { readOnlyHint: true }
-    });
+    },
 
-    // Tool 3: Befehl ausführen
-    navigator.modelContext.registerTool({
-        name: 'run-command',
+    'run-command': {
         description:
-            'Sendet einen Shell-Befehl an das aktive Terminal. ' +
-            'Der Befehl wird mit Enter (\\n) abgeschlossen.',
+            'Führt einen Shell-Befehl im aktiven Terminal aus (mit Enter) und wartet auf die Ausgabe. ' +
+            'Gibt die neuen Terminal-Zeilen zurück, die nach dem Befehl erschienen sind. ' +
+            'Bei langlaufenden Befehlen wird nach einem Timeout die bis dahin erfasste Ausgabe geliefert.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -823,21 +836,56 @@ function initWebMCP() {
             },
             required: ['command']
         },
-        execute({ command }) {
+        async execute({ command }) {
             if (!socket?.connected) {
                 return { error: 'Terminal ist nicht verbunden.' };
             }
             if (!command?.trim()) {
                 return { error: 'Kein Befehl angegeben.' };
             }
+            // Startpunkt merken (eine Zeile zurück, um die Prompt-/Echo-Zeile einzuschließen)
+            const startIndex = Math.max(0, outputBuffer.length - 1);
+            const baseline = lastOutputAt; // echter Marker: ändert sich, sobald Ausgabe eintrifft
             socket.emit('terminal-input', command + '\n');
-            return { sent: command };
+            const reason = await waitForCommandOutput(baseline, { quietMs: 700, maxMs: 10000, noOutputMs: 1500 });
+            const newLines = outputBuffer.slice(startIndex);
+            // Auf die letzten 200 Zeilen begrenzen, falls sehr viel Ausgabe kam
+            const output = newLines.slice(-200);
+            return {
+                sent: command,
+                output,
+                still_running: reason === 'timeout'
+            };
         }
-    });
+    },
 
-    // Tool 4: Sessions auflisten
-    navigator.modelContext.registerTool({
-        name: 'list-sessions',
+    'send-input': {
+        description:
+            'Tippt Text in das aktive Terminal, OHNE ihn auszuführen (kein Enter). ' +
+            'Nützlich, damit der Nutzer einen vorgeschlagenen Befehl vor dem Ausführen prüfen kann.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                text: {
+                    type: 'string',
+                    description: 'Der einzufügende Text (ohne abschließendes Enter).'
+                }
+            },
+            required: ['text']
+        },
+        execute({ text }) {
+            if (!socket?.connected) {
+                return { error: 'Terminal ist nicht verbunden.' };
+            }
+            if (typeof text !== 'string' || text.length === 0) {
+                return { error: 'Kein Text angegeben.' };
+            }
+            socket.emit('terminal-input', text);
+            return { pasted: text };
+        }
+    },
+
+    'list-sessions': {
         description: 'Listet alle verfügbaren tmux-Sessions auf dem Server auf.',
         inputSchema: { type: 'object', properties: {} },
         async execute() {
@@ -849,11 +897,9 @@ function initWebMCP() {
             };
         },
         annotations: { readOnlyHint: true }
-    });
+    },
 
-    // Tool 5: Session wechseln
-    navigator.modelContext.registerTool({
-        name: 'switch-session',
+    'switch-session': {
         description:
             'Wechselt zu einer bestehenden tmux-Session. ' +
             'Die Seite wird mit der gewählten Session neu geladen.',
@@ -872,11 +918,9 @@ function initWebMCP() {
             switchToSession(session.trim());
             return { switching_to: session.trim() };
         }
-    });
+    },
 
-    // Tool 6: Neue Session erstellen
-    navigator.modelContext.registerTool({
-        name: 'create-session',
+    'create-session': {
         description:
             'Erstellt eine neue tmux-Session und wechselt zu ihr. ' +
             'Erlaubte Zeichen im Namen: Buchstaben, Zahlen, Bindestriche, Unterstriche.',
@@ -898,23 +942,23 @@ function initWebMCP() {
             switchToSession(clean);
             return { creating_and_switching_to: clean };
         }
-    });
+    },
 
-    // Tool 7: Farbschema setzen
-    navigator.modelContext.registerTool({
-        name: 'set-theme',
+    'set-theme': {
         description: 'Ändert das Farbschema des Web Terminals.',
-        inputSchema: {
-            type: 'object',
-            properties: {
-                theme: {
-                    type: 'string',
-                    description:
-                        'Name des Farbschemas. Verfügbar: ' +
-                        Object.keys(themes).join(', ')
-                }
-            },
-            required: ['theme']
+        get inputSchema() {
+            return {
+                type: 'object',
+                properties: {
+                    theme: {
+                        type: 'string',
+                        description:
+                            'Name des Farbschemas. Verfügbar: ' +
+                            Object.keys(themes).join(', ')
+                    }
+                },
+                required: ['theme']
+            };
         },
         execute({ theme }) {
             if (!themes[theme]) {
@@ -927,10 +971,38 @@ function initWebMCP() {
             if (themeSelect) themeSelect.value = theme;
             return { theme_set: theme };
         }
-    });
+    }
+};
 
+// Für den In-Page-Chat (chat.js) zugänglich machen
+window.TERMINAL_TOOLS = TERMINAL_TOOLS;
+window.focusTerminal = () => { if (terminal) terminal.focus(); };
+
+// WebMCP Tools registrieren
+function initWebMCP() {
+    if (!('modelContext' in navigator && 'registerTool' in navigator.modelContext)) {
+        console.info(
+            '%c[WebMCP] Nicht verfügbar – benötigt Chrome 146+ mit\n' +
+            'chrome://flags/#enable-webmcp-testing',
+            'color: #a855f7; font-weight: bold;'
+        );
+        updateWebMCPIndicator(false);
+        return;
+    }
+
+    for (const [name, tool] of Object.entries(TERMINAL_TOOLS)) {
+        navigator.modelContext.registerTool({
+            name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+            execute: tool.execute,
+            ...(tool.annotations ? { annotations: tool.annotations } : {})
+        });
+    }
+
+    const count = Object.keys(TERMINAL_TOOLS).length;
     console.info(
-        '%c[WebMCP] 7 Terminal-Tools registriert ✓',
+        `%c[WebMCP] ${count} Terminal-Tools registriert ✓`,
         'color: #a855f7; font-weight: bold;'
     );
     updateWebMCPIndicator(true);
@@ -957,8 +1029,8 @@ function reconnect() {
 // Event Listeners
 // Global click listener - Terminal fokussieren
 document.addEventListener('click', (e) => {
-    // Klicks auf den Session-Switcher nicht in Terminal-Focus umleiten
-    if (e.target.closest && e.target.closest('.session-switcher')) {
+    // Klicks auf Session-Switcher und KI-Chat nicht in Terminal-Focus umleiten
+    if (e.target.closest && e.target.closest('.session-switcher, .chat-panel, .chat-toggle')) {
         return;
     }
     if (terminal) {
@@ -969,6 +1041,11 @@ document.addEventListener('click', (e) => {
 
 // Keyboard Shortcuts
 document.addEventListener('keydown', (e) => {
+    // Terminal-Shortcuts nicht auslösen, während im KI-Chat getippt wird
+    if (e.target.closest && e.target.closest('.chat-panel')) {
+        return;
+    }
+
     // Ctrl+L für Clear
     if (e.ctrlKey && e.key === 'l') {
         e.preventDefault();
@@ -1080,7 +1157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSocket();
     loadTmuxSessions();
     initWebMCP();
-    
+
     // Terminal automatisch fokussieren
     setTimeout(() => {
         if (terminal) {
