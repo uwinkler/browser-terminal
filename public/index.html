@@ -70,6 +70,52 @@
         </footer>
     </div>
 
+    <!-- KI-Chat: Toggle-Button + Panel -->
+    <button id="chat-toggle" class="chat-toggle" title="KI-Chat öffnen/schließen (Ctrl+I)">💬</button>
+
+    <aside id="chat-panel" class="chat-panel" aria-hidden="true">
+        <header class="chat-header">
+            <span class="chat-dot"></span>
+            <span class="chat-title">Terminal KI-Chat</span>
+            <button class="chat-icon" id="chat-send-buffer" title="Aktuellen Terminal-Buffer ans Modell senden">📋</button>
+            <button class="chat-icon" id="chat-clear" title="Verlauf leeren">🗑️</button>
+            <button class="chat-icon" id="chat-settings-btn" title="Einstellungen">⚙️</button>
+            <button class="chat-icon" id="chat-close" title="Schließen">✕</button>
+        </header>
+
+        <div id="chat-settings" class="chat-settings">
+            <label for="chat-api-key">OpenAI API-Key</label>
+            <input type="password" id="chat-api-key" placeholder="sk-…  (leer lassen, wenn der Server OPENAI_API_KEY setzt)" autocomplete="off">
+            <label for="chat-model">Modell</label>
+            <input id="chat-model" list="chat-model-options" placeholder="gpt-5.5" autocomplete="off">
+            <datalist id="chat-model-options">
+                <option value="gpt-5.5"></option>
+                <option value="gpt-5.5-nano"></option>
+                <option value="gpt-5"></option>
+                <option value="gpt-4o-mini"></option>
+                <option value="gpt-4o"></option>
+                <option value="gpt-4.1"></option>
+            </datalist>
+            <button class="chat-primary" id="chat-save-settings">Speichern</button>
+            <p class="chat-hint">Der Key wird lokal im Browser (localStorage) gespeichert und nur an deinen
+                eigenen Server-Proxy geschickt. Nur für persönliche Nutzung.</p>
+        </div>
+
+        <div id="chat-messages" class="chat-messages">
+            <div class="chat-empty" id="chat-empty">
+                Frag mich etwas zu deinem Terminal.<br>
+                Die letzten 200 Zeilen Ausgabe werden automatisch als Kontext mitgeschickt.
+            </div>
+        </div>
+
+        <div id="chat-status" class="chat-status"></div>
+
+        <div class="chat-composer">
+            <textarea id="chat-input" rows="1" placeholder="Nachricht … (Enter = senden, Shift+Enter = Zeilenumbruch)"></textarea>
+            <button class="chat-primary" id="chat-send">Senden</button>
+        </div>
+    </aside>
+
     <!-- Socket.IO -->
     <script src="/socket.io/socket.io.js"></script>
     
@@ -80,5 +126,6 @@
     
     <!-- Custom JavaScript -->
     <script src="client.js"></script>
+    <script src="chat.js"></script>
 </body>
 </html>
