@@ -69,6 +69,25 @@ function appendToBuffer(data) {
     }
 }
 
+// Liest die letzten `count` Zeilen aus dem ECHT gerenderten xterm-Buffer.
+// Anders als outputBuffer (roher, linear angehängter Stream) entspricht das dem,
+// was tatsächlich auf dem Schirm steht – inkl. korrekt verarbeiteter Cursor-
+// Positionierung. Wichtig für tmux/Vollbild-Apps, die den Schirm neu zeichnen.
+function getTerminalLines(count) {
+    if (!terminal || !terminal.buffer || !terminal.buffer.active) return [];
+    const buf = terminal.buffer.active;
+    const total = buf.length;
+    const start = Math.max(0, total - count);
+    const lines = [];
+    for (let i = start; i < total; i++) {
+        const line = buf.getLine(i);
+        lines.push(line ? line.translateToString(true) : '');
+    }
+    // Leerzeilen am Ende (leerer Viewport-Bereich) entfernen
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
+    return lines;
+}
+
 // Color Themes Configuration
 const themes = {
     classic: {
@@ -757,6 +776,7 @@ function initSocket() {
 
 // Status aktualisieren
 function updateStatus(status, text) {
+    if (!statusIndicator || !statusText) return;
     statusIndicator.className = `status-dot ${status}`;
     statusText.textContent = text;
 }
@@ -800,8 +820,9 @@ const TERMINAL_TOOLS = {
 
     'get-terminal-output': {
         description:
-            'Liest die letzten Zeilen aus dem Terminal-Ausgabe-Puffer (max. 500 Zeilen gespeichert). ' +
-            'ANSI-Steuersequenzen sind bereits entfernt.',
+            'Liest die letzten Zeilen des AKTUELL sichtbaren Terminal-Inhalts (gerenderter ' +
+            'xterm-Schirm inkl. Scrollback). Spiegelt den echten Stand wider, auch bei ' +
+            'tmux/Vollbild-Apps. Max. 500 Zeilen.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -813,9 +834,10 @@ const TERMINAL_TOOLS = {
         },
         execute({ lines = 50 } = {}) {
             const count = Math.min(Math.max(1, Math.floor(lines)), 500);
+            const out = getTerminalLines(count);
             return {
-                lines: outputBuffer.slice(-count),
-                total_buffered: outputBuffer.length
+                lines: out,
+                returned: out.length
             };
         },
         annotations: { readOnlyHint: true }
@@ -824,8 +846,8 @@ const TERMINAL_TOOLS = {
     'run-command': {
         description:
             'Führt einen Shell-Befehl im aktiven Terminal aus (mit Enter) und wartet auf die Ausgabe. ' +
-            'Gibt die neuen Terminal-Zeilen zurück, die nach dem Befehl erschienen sind. ' +
-            'Bei langlaufenden Befehlen wird nach einem Timeout die bis dahin erfasste Ausgabe geliefert.',
+            'Gibt anschließend den aktuell sichtbaren Terminal-Inhalt (gerenderter Schirm) zurück. ' +
+            'Bei langlaufenden Befehlen wird nach einem Timeout der bis dahin sichtbare Stand geliefert.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -843,14 +865,11 @@ const TERMINAL_TOOLS = {
             if (!command?.trim()) {
                 return { error: 'Kein Befehl angegeben.' };
             }
-            // Startpunkt merken (eine Zeile zurück, um die Prompt-/Echo-Zeile einzuschließen)
-            const startIndex = Math.max(0, outputBuffer.length - 1);
             const baseline = lastOutputAt; // echter Marker: ändert sich, sobald Ausgabe eintrifft
             socket.emit('terminal-input', command + '\n');
             const reason = await waitForCommandOutput(baseline, { quietMs: 700, maxMs: 10000, noOutputMs: 1500 });
-            const newLines = outputBuffer.slice(startIndex);
-            // Auf die letzten 200 Zeilen begrenzen, falls sehr viel Ausgabe kam
-            const output = newLines.slice(-200);
+            // Aktuell gerenderten Schirm lesen (statt linearem Roh-Buffer)
+            const output = getTerminalLines(200);
             return {
                 sent: command,
                 output,

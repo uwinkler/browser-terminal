@@ -79,6 +79,31 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// API: Gespeicherte OpenAI-Responses löschen (beim Leeren des Chats).
+// Body: { apiKey?, ids: [responseId, …] }
+app.post('/api/chat/delete', async (req, res) => {
+  const { apiKey, ids } = req.body || {};
+  const key = apiKey || process.env.OPENAI_API_KEY;
+  if (!key || !Array.isArray(ids) || ids.length === 0) {
+    return res.json({ deleted: 0 });
+  }
+  let deleted = 0;
+  await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const r = await fetch(`https://api.openai.com/v1/responses/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${key}` }
+        });
+        if (r.ok) deleted++;
+      } catch (error) {
+        // best-effort – einzelne Fehler ignorieren
+      }
+    })
+  );
+  res.json({ deleted });
+});
+
 // Terminal-Sessions verwalten
 const terminals = {};
 

@@ -40,6 +40,7 @@
 
   // ── Zustand ──────────────────────────────────────────────────────────
   let lastResponseId = null; // Responses-API-Verkettung (previous_response_id)
+  let responseIds = []; // alle erzeugten Response-IDs (zum Löschen beim Leeren)
   let busy = false;
   let currentActions = []; // zuletzt vorgeschlagene Instant-Actions (für Zifferntasten)
 
@@ -103,12 +104,27 @@
     setTimeout(() => setStatus(''), 1500);
   });
   $('chat-clear').addEventListener('click', () => {
+    const toDelete = responseIds.slice();
     lastResponseId = null;
+    responseIds = [];
     messagesEl.innerHTML = '';
     messagesEl.appendChild(emptyHint);
     emptyHint.style.display = '';
     setStatus('');
+    // Gespeicherte Konversation bei OpenAI löschen (best-effort, blockiert nicht)
+    deleteResponses(toDelete);
   });
+
+  // Löscht die server-seitig gespeicherten Responses bei OpenAI (über den Proxy)
+  function deleteResponses(ids) {
+    if (!ids || !ids.length) return;
+    const apiKey = localStorage.getItem(LS_KEY) || '';
+    fetch('/api/chat/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, ids })
+    }).catch(() => {});
+  }
   $('chat-send-buffer').addEventListener('click', sendBuffer);
 
   // ── Tools ───────────────────────────────────────────────────────────
@@ -185,7 +201,10 @@
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       setStatus(round === 0 ? 'Denkt nach …' : 'Verarbeite Ergebnisse …', true);
       const data = await callResponses({ input: pendingInput, previous_response_id: prev });
-      lastResponseId = data.id || lastResponseId;
+      if (data.id) {
+        lastResponseId = data.id;
+        responseIds.push(data.id);
+      }
       prev = data.id;
 
       const { text: assistantText, functionCalls, usedWebSearch } = parseResponse(data);
@@ -274,7 +293,7 @@
   async function runAndFeed(command, btn) {
     if (busy) return;
     const original = btn.textContent;
-    btn.disabled = true;
+    btn.textContent = '⏳ Läuft…';
     setBusy(true);
     currentActions = [];
     addMessage('user', `▶ ${command}`);
@@ -299,10 +318,7 @@
       setStatus('');
     } finally {
       setBusy(false);
-      setTimeout(() => {
-        btn.textContent = original;
-        btn.disabled = false;
-      }, 1500);
+      setTimeout(() => { btn.textContent = original; }, 1500);
       inputEl.focus();
     }
   }
@@ -378,6 +394,17 @@
         renderActions(wrap, actions);
         currentActions = actions;
       }
+    } else if (role === 'user') {
+      bubble.textContent = content;
+      bubble.title = 'Klicken zum Wiederholen';
+      bubble.style.cursor = 'pointer';
+      bubble.addEventListener('click', () => {
+        const text = content.startsWith('▶ ') ? content.slice(2) : content;
+        inputEl.value = text;
+        autoGrow();
+        inputEl.focus();
+        inputEl.setSelectionRange(text.length, text.length);
+      });
     } else {
       bubble.textContent = content;
     }
